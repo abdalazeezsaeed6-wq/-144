@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>لوحة تحكم العالمية فون</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --gold: #fbc02d; --black: #0d0d0d; --dark-grey: #1a1a1a; --white: #f5f5f5; }
+        body { font-family: 'Cairo', sans-serif; background-color: var(--black); color: var(--white); margin: 0; padding: 0; }
+        
+        /* تصميم عام للبطاقات */
+        .card { background: var(--dark-grey); padding: 25px; border-radius: 15px; border: 1px solid var(--gold); max-width: 500px; margin: 50px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: var(--gold); text-align: center; margin-bottom: 25px; }
+        
+        input, select { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #333; background: #000; color: white; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.3s; }
+        
+        .btn-gold { background: var(--gold); color: black; }
+        .btn-gold:hover { background: #eab126; transform: scale(1.02); }
+        .btn-red { background: #ff5252; color: white; margin-top: 10px; }
+        .hidden { display: none !important; }
+
+        /* ستايل قائمة المنتجات في لوحة التحكم */
+        .admin-product-item { display: flex; align-items: center; justify-content: space-between; background: #111; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #333; }
+        .admin-product-item img { width: 50px; height: 50px; border-radius: 5px; object-fit: cover; }
+        
+        /* تنبيهات */
+        .status-msg { text-align: center; margin-top: 10px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div id="adminLogin" class="card">
+    <h2>قفل الإدارة - العالمية فون</h2>
+    <input type="text" id="user" placeholder="اسم المستخدم">
+    <input type="password" id="pass" placeholder="كلمة المرور">
+    <button class="btn-gold" onclick="login()">دخول للوحة التحكم</button>
+    <p id="loginError" style="color: red; text-align: center; display: none;">خطأ في البيانات!</p>
+    <button class="btn-red" style="background: #333;" onclick="window.location.href='index.html'">العودة للمتجر</button>
+</div>
+
+<div id="adminPanel" class="hidden">
+    <div class="card" style="max-width: 800px;">
+        <h2>إضافة منتج جديد</h2>
+        <input type="text" id="pName" placeholder="اسم المنتج (مثلاً: آيفون 15 برو)">
+        <input type="number" id="pPrice" placeholder="السعر (ر.س)">
+        <select id="pCat">
+            <option value="جوالات">جوالات</option>
+            <option value="إكسسوارات">إكسسوارات</option>
+            <option value="عطور">عطور</option>
+            <option value="هدايا">هدايا</option>
+        </select>
+        <input type="text" id="pImg" placeholder="رابط صورة المنتج (URL)">
+        <p style="font-size: 11px; color: #888; margin-top: -10px;">نصيحة: يمكنك رفع الصور على مواقع مثل (ImgBB) ونسخ الرابط هنا.</p>
+        
+        <button class="btn-gold" onclick="uploadProduct()">نشر المنتج في المتجر ✅</button>
+        <div id="uploadStatus" class="status-msg"></div>
+
+        <hr style="margin: 30px 0; border: 0; border-top: 1px solid #444;">
+
+        <h2>إدارة المنتجات المعروضة</h2>
+        <div id="adminProductsList">
+            </div>
+        
+        <button class="btn-red" style="background: #333; margin-top: 40px;" onclick="location.reload()">تسجيل خروج</button>
+    </div>
+</div>
+
+<script>
+    const DB_URL = "https://alealamiat-fun-default-rtdb.firebaseio.com";
+
+    // بيانات الدخول (يمكنك تغييرها من هنا)
+    const adminData = { user: "عبدالعزيز", pass: "12345" };
+
+    function login() {
+        const u = document.getElementById('user').value;
+        const p = document.getElementById('pass').value;
+        if(u === adminData.user && p === adminData.pass) {
+            document.getElementById('adminLogin').classList.add('hidden');
+            document.getElementById('adminPanel').classList.remove('hidden');
+            loadAdminProducts(); // تحميل المنتجات عند الدخول
+        } else {
+            document.getElementById('loginError').style.display = 'block';
+        }
+    }
+
+    // إضافة منتج جديد
+    async function uploadProduct() {
+        const name = document.getElementById('pName').value;
+        const price = document.getElementById('pPrice').value;
+        const category = document.getElementById('pCat').value;
+        const img = document.getElementById('pImg').value;
+
+        if(!name || !price || !img) return alert("يرجى إكمال كافة الحقول!");
+
+        document.getElementById('uploadStatus').innerText = "جاري النشر...";
+
+        const newProduct = { name, price, category, img };
+
+        try {
+            await fetch(`${DB_URL}/Products.json`, {
+                method: "POST", // POST تنشئ معرف تلقائي للمنتج
+                body: JSON.stringify(newProduct)
+            });
+            document.getElementById('uploadStatus').style.color = "#25d366";
+            document.getElementById('uploadStatus').innerText = "تم النشر بنجاح! سيظهر في المتجر فوراً.";
+            
+            // مسح الحقول بعد النشر
+            document.getElementById('pName').value = "";
+            document.getElementById('pPrice').value = "";
+            document.getElementById('pImg').value = "";
+            loadAdminProducts(); // تحديث القائمة بالأسفل
+        } catch (e) {
+            alert("فشل النشر، تأكد من إعدادات Firebase");
+        }
+    }
+
+    // تحميل المنتجات لحذفها
+    async function loadAdminProducts() {
+        const listDiv = document.getElementById('adminProductsList');
+        listDiv.innerHTML = "جاري التحميل...";
+        
+        try {
+            const res = await fetch(`${DB_URL}/Products.json`);
+            const data = await res.json();
+            listDiv.innerHTML = "";
+            
+            for (let id in data) {
+                listDiv.innerHTML += `
+                    <div class="admin-product-item">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <img src="${data[id].img}">
+                            <div>
+                                <div style="font-weight:bold;">${data[id].name}</div>
+                                <div style="font-size:12px; color:var(--gold);">${data[id].price} ر.س</div>
+                            </div>
+                        </div>
+                        <button class="btn-red" style="width:60px; padding:5px; font-size:12px;" onclick="deleteProduct('${id}')">حذف</button>
+                    </div>
+                `;
+            }
+        } catch (e) { listDiv.innerHTML = "لا توجد منتجات حالياً."; }
+    }
+
+    // حذف منتج
+    async function deleteProduct(id) {
+        if(confirm("هل أنت متأكد من حذف هذا المنتج نهائياً؟")) {
+            await fetch(`${DB_URL}/Products/${id}.json`, { method: "DELETE" });
+            loadAdminProducts();
+        }
+    }
+</script>
+
+</body>
+</html>
