@@ -1,43 +1,159 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>إدارة العالمية فون | لوحة التحكم</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --gold: #fbc02d; --black: #0d0d0d; --dark-grey: #1a1a1a; --white: #f5f5f5; }
+        body { font-family: 'Cairo', sans-serif; background-color: var(--black); color: var(--white); margin: 0; padding: 20px; }
+        
+        .card { background: var(--dark-grey); padding: 25px; border-radius: 15px; border: 1px solid var(--gold); max-width: 600px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: var(--gold); text-align: center; margin-bottom: 25px; }
+        
+        input, select { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #333; background: #000; color: white; box-sizing: border-box; font-size: 16px; }
+        button { width: 100%; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.3s; }
+        
+        .btn-gold { background: var(--gold); color: black; }
+        .btn-gold:hover { background: #eab126; transform: scale(1.02); }
+        .btn-red { background: #ff5252; color: white; margin-top: 10px; }
+        .hidden { display: none !important; }
 
-on:
-  # Runs on pushes targeting the default branch
-  push:
-    branches: ["main"]
+        .admin-product-item { display: flex; align-items: center; justify-content: space-between; background: #111; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #333; }
+        .admin-product-item img { width: 50px; height: 50px; border-radius: 5px; object-fit: cover; }
+        .badge-out { background: red; color: white; font-size: 10px; padding: 2px 5px; border-radius: 4px; margin-right: 5px; }
+    </style>
+</head>
+<body>
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+<div id="adminLogin" class="card">
+    <h2>قفل الإدارة - العالمية فون</h2>
+    <input type="text" id="userInput" placeholder="اسم المستخدم">
+    <input type="password" id="passInput" placeholder="كلمة المرور">
+    <button class="btn-gold" onclick="login()">دخول</button>
+    <p id="loginError" style="color: red; text-align: center; display: none; margin-top: 10px;">بيانات الدخول خاطئة!</p>
+</div>
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+<div id="adminPanel" class="hidden">
+    <div class="card">
+        <h2>إضافة منتج جديد</h2>
+        <input type="text" id="pName" placeholder="اسم المنتج">
+        <input type="number" id="pPrice" placeholder="السعر الحالي (ر.س)">
+        <input type="number" id="pOldPrice" placeholder="السعر قبل الخصم (اختياري)">
+        
+        <select id="pCat">
+            <option value="جوالات">جوالات</option>
+            <option value="إكسسوارات">إكسسوارات</option>
+            <option value="عطور">عطور</option>
+            <option value="هدايا">هدايا</option>
+        </select>
+        
+        <input type="text" id="pImg" placeholder="رابط صورة المنتج">
+        
+        <label style="display:block; margin-bottom: 15px; cursor: pointer;">
+            <input type="checkbox" id="pOut" style="width: auto;"> المنتج نفد من المخزن
+        </label>
+        
+        <button class="btn-gold" onclick="uploadProduct()">نشر في المتجر ✅</button>
+        <div id="status" style="text-align: center; margin-top: 10px;"></div>
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+        <hr style="border:0; border-top:1px solid #444; margin: 30px 0;">
 
-jobs:
-  # Single deploy job since we're just deploying
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          # Upload entire repository
-          path: '.'
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        <h2>إدارة المنتجات</h2>
+        <div id="adminProductsList">جاري تحميل المنتجات...</div>
+        
+        <button class="btn-red" style="background: #333;" onclick="location.reload()">تسجيل خروج</button>
+    </div>
+</div>
+
+<script>
+    // الرابط الصحيح لقاعدة بياناتك
+    const DB_URL = "https://alealamiat-fun-default-rtdb.firebaseio.com/Products";
+    
+    // بيانات الدخول الخاصة بك
+    const adminData = { user: "عبدالعزيز", pass: "12345" };
+
+    function login() {
+        const u = document.getElementById('userInput').value;
+        const p = document.getElementById('passInput').value;
+        if(u === adminData.user && p === adminData.pass) {
+            document.getElementById('adminLogin').classList.add('hidden');
+            document.getElementById('adminPanel').classList.remove('hidden');
+            loadAdminProducts();
+        } else {
+            document.getElementById('loginError').style.display = 'block';
+        }
+    }
+
+    async function uploadProduct() {
+        const name = document.getElementById('pName').value.trim();
+        const price = document.getElementById('pPrice').value.trim();
+        const oldPrice = document.getElementById('pOldPrice').value.trim();
+        const category = document.getElementById('pCat').value;
+        const img = document.getElementById('pImg').value.trim();
+        const outOfStock = document.getElementById('pOut').checked;
+
+        if(!name || !price || !img) return alert("يرجى تعبئة الاسم والسعر والصورة!");
+
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerText = "جاري النشر...";
+
+        const productData = { name, price, oldPrice, category, img, outOfStock };
+
+        try {
+            await fetch(`${DB_URL}.json`, {
+                method: "POST",
+                body: JSON.stringify(productData)
+            });
+            alert("تم إضافة المنتج بنجاح!");
+            location.reload(); 
+        } catch (e) {
+            alert("حدث خطأ في الاتصال!");
+            btn.disabled = false;
+            btn.innerText = "نشر في المتجر ✅";
+        }
+    }
+
+    async function loadAdminProducts() {
+        const listDiv = document.getElementById('adminProductsList');
+        try {
+            const res = await fetch(`${DB_URL}.json`);
+            const data = await res.json();
+            listDiv.innerHTML = "";
+            
+            if(!data) {
+                listDiv.innerHTML = "لا توجد منتجات حالياً.";
+                return;
+            }
+
+            for (let id in data) {
+                listDiv.innerHTML += `
+                    <div class="admin-product-item">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <img src="${data[id].img}">
+                            <div>
+                                <div style="font-weight:bold;">${data[id].name} ${data[id].outOfStock ? '<span class="badge-out">نفد</span>' : ''}</div>
+                                <div style="font-size:12px; color:var(--gold);">${data[id].price} ر.س</div>
+                            </div>
+                        </div>
+                        <button class="btn-red" style="width:60px; padding:5px; font-size:12px; margin:0;" onclick="deleteProduct('${id}')">حذف</button>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            listDiv.innerHTML = "خطأ في تحميل المنتجات.";
+        }
+    }
+
+    async function deleteProduct(id) {
+        if(confirm("هل أنت متأكد من حذف هذا المنتج؟")) {
+            await fetch(`${DB_URL}/${id}.json`, { method: "DELETE" });
+            loadAdminProducts();
+        }
+    }
+</script>
+
+</body>
+</html>
